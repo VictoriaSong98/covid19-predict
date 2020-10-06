@@ -12,6 +12,7 @@ library(ggplot2)
 library(dplyr)
 library(zoo)
 library(ggthemes)
+library(forecast)
 
 # Load data ----
 library(readr)
@@ -68,7 +69,7 @@ server <- function(input, output, session) {
         mutate(case_7days = rollmean(cases, k = 7, fill = NA))
       
       
-      # View(plotData)
+      
       
       
       chooseCumulative <- input$selectTrend == "Cumulative Cases"

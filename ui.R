@@ -5,10 +5,10 @@ library(zoo)
 
 # Load data ----
 library(readr)
-# county_data <- read_csv("~/SYE_Fall2020/data/us_counties_covid19_daily.csv")
-county_data <- read_csv("~/SYE_Fall2020/data/us-counties.csv")
-state_data <- read_csv("~/SYE_Fall2020/data/us-states.csv")
-countyNames <- read_csv("~/SYE_Fall2020/data/countyNames.csv")
+# county_data <- read_csv("data/us_counties_covid19_daily.csv")
+county_data <- read_csv("data/us-counties.csv")
+state_data <- read_csv("data/us-states.csv")
+countyNames <- read_csv("data/countyNames.csv")
 
 
 # tryStates = c("California", "New York", "New Jersey")
@@ -30,7 +30,7 @@ ui <- fluidPage(
     sidebarLayout(
         sidebarPanel(
             
-        
+            
             
             selectInput("selectState", label = h3("Select a state"), 
                         choices = allStates
@@ -41,20 +41,17 @@ ui <- fluidPage(
             
             uiOutput("selectCounty"),
             
-            selectInput("selectTrend", label = h3("Pick a trend"),
-                        choices = list("Cumulative Cases",
-                                       "New Cases",
-                                       "7-day Rolling Average")),
+            #selectInput("selectTrend", label = h3("Pick a trend"),
+            #choices = list("Cumulative Cases",
+            #"New Cases",
+            #"7-day Rolling Average")),
             
             
             
             dateRangeInput("dates", h3("Date range"), start = as.Date("2020-03-29"),
                            end = as.Date("2020-08-29")),
             
-            checkboxGroupInput("chooseModel", "Select Model(s)",
-                               choices = list("Simple linear regression",
-                                              "Quadratic regression",
-                                              "Cubic regression")),
+            
             
             dateInput("futureDate", "Choose a date to forecast the data",
                       value = "2020-03-29")
@@ -68,7 +65,32 @@ ui <- fluidPage(
         mainPanel(
             
             
-            plotOutput(outputId = "statePlot")
+            #plotOutput(outputId = "statePlot"),
+            
+            textOutput("selected_var"),
+            
+            navbarPage(tabPanel("selectTab"),
+                       navbarMenu("Cumulative Cases",
+                                  tabPanel("Overview",
+                                           plotOutput("cumulative_plot")),
+                                  tabPanel("7-day Rolling Average",
+                                           plotOutput("cumulative_average")),
+                                  checkboxGroupInput("chooseModel", "Select Model(s)",
+                                                     choices = list("Simple linear regression",
+                                                                    "Quadratic regression",
+                                                                    "Cubic regression",
+                                                                    "Double Exponential Smoothing"))
+                       ),
+                       navbarMenu("New Cases",
+                                  tabPanel("Overview",
+                                           plotOutput("new_cases_plot")),
+                                  tabPanel("7-day Rolling Average",
+                                           plotOutput("new_average"))))
+            
+            
+            
+            
+            
         )
     )
 )
