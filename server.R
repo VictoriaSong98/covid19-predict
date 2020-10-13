@@ -90,25 +90,33 @@ server <- function(input, output, session) {
   })
   
   
-  bigPlot <- function(dataSet, yvar, chooseMod, dateRange, fuDate){
+  bigPlot <- function(dataSet, yvar, chooseMod, dateRange, future_date){
+    
+    if(yvar == "cases"){
+      days_average = "case_7days"
+    }else{
+      days_average = "case_7days_new"
+    }
+
     # plot the graph
     my_plot <- ggplot(dataSet) +
-      geom_line(mapping = aes(x = date, y = cases), size=1.5) +
+      geom_line(mapping = aes(x = date, y = get(yvar)), size=1.5) +
       labs (y = "Positive cases", x = "Date")+
       xlim(dateRange[1], dateRange[2])+
-      ylim(0, max(dataSet $ cases, na.rm = TRUE) * 2)
+      ylim(0, max(dataSet[[yvar]], na.rm = TRUE))
     
     # plotting models
     slr <- "Simple linear regression" %in% chooseMod
     quad <- "Quadratic regression" %in% chooseMod
     cub <- "Cubic regression" %in% chooseMod
     doule_smo <- "Double Exponential Smoothing" %in% chooseMod
+    ave <- "7-day Rolling Average" %in% chooseMod
     
     new <- data.frame(date = seq(dateRange[1], dateRange[2], by = "day"))
     
     if(slr){
       # simple linear model
-      slr_ds <- lm(cases ~ as.Date(date), data = subset(dataSet, as.Date(date) < fuDate))
+      slr_ds <- lm(get(yvar) ~ as.Date(date), data = subset(dataSet, as.Date(date) < future_date))
       
       pred.slr <- predict(slr_ds, new)
       
@@ -130,12 +138,17 @@ server <- function(input, output, session) {
                   size=1.5, linetype = "dashed")+
         geom_ribbon(data = new, aes(x = date, ymin = slrLoCI, ymax = slrHiCI),
                     fill = "olivedrab", alpha = 0.4, stat = "identity")
+      
+      if (max(new$slr) > max(dataSet[[yvar]], na.rm = TRUE)){
+        my_plot <- my_plot +
+          ylim(0, max(dataSet[[yvar]], na.rm = TRUE) * 2)
+      } 
     }
     
     if(quad){
       # qudratic model
-      quad_ds <- lm(cases ~ as.Date(date) + I(time(date) ^ 2),
-                    data = subset(dataSet, as.Date(date) < fuDate))
+      quad_ds <- lm(get(yvar) ~ as.Date(date) + I(time(date) ^ 2),
+                    data = subset(dataSet, as.Date(date) < future_date))
       
       pred.quad <- predict(quad_ds, new)
       
@@ -156,12 +169,18 @@ server <- function(input, output, session) {
                   size=1.5, linetype = "dashed")+
         geom_ribbon(data = new, aes(x = date, ymin = quadLoCI, ymax = quadHiCI),
                     fill = "hotpink2", alpha = 0.4, stat = "identity")
+      
+      
+      if (max(new$quad) > max(dataSet[[yvar]], na.rm = TRUE)){
+        my_plot <- my_plot +
+          ylim(0, max(dataSet[[yvar]], na.rm = TRUE) * 2)
+      } 
     }
     
     if(cub){
       # cubic model
-      cubic_ds <- lm(cases ~ as.Date(date) + I(time(date) ^ 2) + I(time(date) ^ 3),
-                     data = subset(dataSet, as.Date(date) < fuDate))
+      cubic_ds <- lm(get(yvar) ~ as.Date(date) + I(time(date) ^ 2) + I(time(date) ^ 3),
+                     data = subset(dataSet, as.Date(date) < future_date))
       
       pred.cubic <- predict(cubic_ds, new)
       pred.cubicLoCI <- predict(cubic_ds, new,
@@ -176,18 +195,25 @@ server <- function(input, output, session) {
                cubicLoCI = pred.cubicLoCI,
                cubicHiCI = pred.cubicHiCI)
       
+      
+      
       my_plot <-
         my_plot +
         geom_line(data = new, aes(x = date, y = cubic), colour = "royalblue",
                   size=1.5, linetype = "dashed")+
         geom_ribbon(data = new, aes(x = date, ymin = cubicLoCI, ymax = cubicHiCI),
                     fill = "salmon", alpha = 0.4, stat = "identity")
+      
+      if (max(new$cubic) > max(dataSet[[yvar]], na.rm = TRUE)){
+        my_plot <- my_plot +
+          ylim(0, max(dataSet[[yvar]], na.rm = TRUE) * 2)
+      } 
     }
     
     
     if(doule_smo){
       print("yes1")
-      pred.exp <- ts(dataSet $ cases, start = c(2020, 3, 29))
+      pred.exp <- ts(yvar, start = c(2020, 3, 29))
       
       #new <- new %>%
       #mutate(dou_exp = pred.exp)
@@ -201,10 +227,18 @@ server <- function(input, output, session) {
       
     }
     
+    if (ave){
+      my_plot <- my_plot +
+        
+        geom_line(data = dataSet, mapping = aes(x = date, y = get(days_average)), size=1, colour="orangered")+
+        labs (y = "7-day Rolling average", x = "Date")+
+        xlim(dateRange[1], dateRange[2])
+    }
+    
     # add vertical line
     my_plot <- my_plot +
       annotate("segment", colour = "purple",
-               x = as.Date(fuDate), xend = as.Date(fuDate),
+               x = as.Date(future_date), xend = as.Date(future_date),
                y = 0, yend = Inf)
     
     my_plot <- my_plot +
@@ -216,127 +250,17 @@ server <- function(input, output, session) {
   
   output$cumulative_plot = renderPlot({
 
-    bigPlot(dataSet = plotData(), yvar = "", chooseMod = input$chooseModel1, dateRange = input$dates, input$futureDate)
+    bigPlot(dataSet = plotData(), yvar = "cases", chooseMod = input$chooseModel1, dateRange = input$dates, input$futureDate)
     
   })
   
   
   
   output$new_cases_plot = renderPlot({
-    # plot the graph
-    my_plot <- ggplot(plotData()) +
-      geom_line(mapping = aes(x = date, y = newcases), size=1.5) +
-      labs (y = "Positive cases", x = "Date")+
-      xlim(input$dates[1], input$dates[2])
     
-    #print(max(plotData() $ newcases, na.rm = TRUE) *2)
+    bigPlot(dataSet = plotData(), yvar = "newcases", chooseMod = input$chooseModel2, dateRange = input$dates, input$futureDate)
     
-    # plotting models 
-    slr <- "Simple linear regression" %in% input$chooseModel2
-    quad <- "Quadratic regression" %in% input$chooseModel2
-    cub <- "Cubic regression" %in% input$chooseModel2
-    doule_smo <- "Double Exponential Smoothing" %in% input$chooseModel2
-    
-    new <- data.frame(date = seq(input$dates[1], input$dates[2], by = "day"))
-    
-    if(slr){
-      # simple linear model
-      slr_ds <- lm(newcases ~ as.Date(date), data = subset(plotData(), as.Date(date) < input$futureDate))
-      
-      pred.slr <- predict(slr_ds, new)
-      
-      pred.slrLoCI <- predict(slr_ds, new, 
-                              interval = "confidence", 
-                              level = 0.9)[, 2]
-      pred.slrHiCI <- predict(slr_ds, new, 
-                              interval = "confidence", 
-                              level = 0.9)[, 3]
-      
-      new <- new %>%
-        mutate(slr = pred.slr,
-               slrLoCI = pred.slrLoCI,
-               slrHiCI = pred.slrHiCI)
-      
-      my_plot <- 
-        my_plot +
-        ylim(0, (max(plotData()$case_7days_new, na.rm = TRUE) * 2))+
-        geom_line(data = new, aes(x = date, y = slr), colour = "steelblue", 
-                  size=1.5, linetype = "dashed")+
-        geom_ribbon(data = new, aes(x = date, ymin = slrLoCI, ymax = slrHiCI), 
-                    fill = "olivedrab", alpha = 0.4, stat = "identity")
-    }
-    
-    if(quad){
-      # qudratic model
-      quad_ds <- lm(newcases ~ as.Date(date) + I(time(date) ^ 2), 
-                    data = subset(plotData(), as.Date(date) < input$futureDate))
-      
-      pred.quad <- predict(quad_ds, new)
-      
-      pred.quadLoCI <- predict(quad_ds, new, 
-                               interval = "confidence", 
-                               level = 0.9)[, 2]
-      pred.quadHiCI <- predict(quad_ds, new, 
-                               interval = "confidence", 
-                               level = 0.9)[, 3]
-      new <- new %>%
-        mutate(quad = pred.quad,
-               quadLoCI = pred.quadLoCI,
-               quadHiCI = pred.quadHiCI)
-      
-      
-
-      
-      my_plot <- 
-        my_plot +
-        ylim(0, (max(plotData()$case_7days_new, na.rm = TRUE) * 2))+
-        geom_line(data = new, aes(x = date, y = quad), colour = "darkorange", 
-                  size=1.5, linetype = "dashed")+
-        geom_ribbon(data = new, aes(x = date, ymin = quadLoCI, ymax = quadHiCI), 
-                    fill = "hotpink2", alpha = 0.4, stat = "identity")
-    }
-    
-    if(cub){
-      # cubic model
-      cubic_ds <- lm(newcases ~ as.Date(date) + I(time(date) ^ 2) + I(time(date) ^ 3), 
-                     data = subset(plotData(), as.Date(date) < input$futureDate))
-      
-      pred.cubic <- predict(cubic_ds, new)
-      pred.cubicLoCI <- predict(cubic_ds, new, 
-                                interval = "confidence", 
-                                level = 0.9)[, 2]
-      pred.cubicHiCI <- predict(cubic_ds, new, 
-                                interval = "confidence", 
-                                level = 0.9)[, 3]
-      
-      new <- new %>%
-        mutate(cubic = pred.cubic,
-               cubicLoCI = pred.cubicLoCI,
-               cubicHiCI = pred.cubicHiCI)
-      
-      my_plot <- 
-        my_plot +
-        ylim(0, (max(plotData()$case_7days_new, na.rm = TRUE) * 2))+
-        geom_line(data = new, aes(x = date, y = cubic), colour = "royalblue", 
-                  size=1.5, linetype = "dashed")+
-        geom_ribbon(data = new, aes(x = date, ymin = cubicLoCI, ymax = cubicHiCI), 
-                    fill = "salmon", alpha = 0.4, stat = "identity")
-    }
-    
-    
-    
-    # add vertical line
-    my_plot <- my_plot +
-      annotate("segment", colour = "purple", 
-               x = as.Date(input$futureDate), xend = as.Date(input$futureDate),
-               y = 0, yend = Inf)
-    
-    my_plot <- my_plot +
-      theme_igray()
-    
-    my_plot
   })
-  
   
   
 }
