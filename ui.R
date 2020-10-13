@@ -69,23 +69,31 @@ ui <- fluidPage(
             
             textOutput("selected_var"),
             
+            
             navbarPage(tabPanel("selectTab"),
-                       navbarMenu("Cumulative Cases",
-                                  tabPanel("Overview",
-                                           plotOutput("cumulative_plot")),
-                                  tabPanel("7-day Rolling Average",
-                                           plotOutput("cumulative_average")),
-                                  checkboxGroupInput("chooseModel", "Select Model(s)",
-                                                     choices = list("Simple linear regression",
-                                                                    "Quadratic regression",
-                                                                    "Cubic regression",
-                                                                    "Double Exponential Smoothing"))
-                       ),
-                       navbarMenu("New Cases",
-                                  tabPanel("Overview",
-                                           plotOutput("new_cases_plot")),
-                                  tabPanel("7-day Rolling Average",
-                                           plotOutput("new_average"))))
+                       tabPanel("Cumulative Cases",
+                                plotOutput("cumulative_plot"),
+                                checkboxGroupInput("chooseModel1", "Select Model(s)",
+                                                   choices = list("Simple linear regression",
+                                                                  "Quadratic regression",
+                                                                  "Cubic regression",
+                                                                  "Double Exponential Smoothing", 
+                                                                  "7-day Rolling Average"))),
+                       
+                       
+                       
+                       
+                       tabPanel("Daily Cases",
+                                plotOutput("new_cases_plot"),
+                                checkboxGroupInput("chooseModel2", "Select Model(s)",
+                                                   choices = list("Simple linear regression",
+                                                                  "Quadratic regression",
+                                                                  "Cubic regression",
+                                                                  "Double Exponential Smoothing",
+                                                                  "7-day Rolling Average")))
+                       
+            )
+            
             
             
             
