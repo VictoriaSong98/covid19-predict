@@ -1,4 +1,5 @@
 library(shiny)
+library(shinyjs) # for hidden 
 library(ggplot2)
 library(dplyr)
 library(zoo)
@@ -64,6 +65,8 @@ ui <- fluidPage(
         # Show a plot of the generated distribution
         mainPanel(
             
+            # for hidden function
+            shinyjs::useShinyjs(),
             
             #plotOutput(outputId = "statePlot"),
             
@@ -73,31 +76,87 @@ ui <- fluidPage(
             navbarPage(tabPanel("selectTab"),
                        tabPanel("Cumulative Cases",
                                 plotOutput("cumulative_plot"),
-                                checkboxGroupInput("chooseModel1", "Select Model(s)",
-                                                   choices = list("Simple linear regression",
-                                                                  "Quadratic regression",
-                                                                  "Cubic regression",
-                                                                  "Double Exponential Smoothing", 
-                                                                  "7-day Rolling Average"))),
+                                
+                                fluidRow(
+                                    column(
+                                        width = 4,
+                                        checkboxGroupInput("chooseModel1", "Select Model(s)",
+                                                           choices = list("Simple linear regression",
+                                                                          "Quadratic regression",
+                                                                          "Cubic regression",
+                                                                          "Double Exponential Smoothing", 
+                                                                          "7-day Rolling Average"))),
+                                    column(
+                                        width = 4,
+                                        div(id = "group1",
+                                            hidden(
+                                                sliderInput("alpha1", "Alpha",
+                                                            min = 0, max = 1, value = 0.1)
+                                            ),
+                                            hidden(
+                                                checkboxInput("checkAlpha1", "Use the optimum Alpha value", FALSE)
+                                            )
+                                            
+                                            
+                                        )
+                                    ),
+                                    column(
+                                        width = 4,
+                                        div(id = "group2",
+                                            hidden(
+                                                sliderInput("beta1", "Beta",
+                                                            min = 0, max = 1, value = 0.1)
+                                            ),
+                                            hidden(
+                                                checkboxInput("checkBeta1", "Use the optimum Beta value", FALSE)
+                                            )
+                                        )
+                                    )
+                                )
+                       ),
                        
                        
                        
                        
                        tabPanel("Daily Cases",
                                 plotOutput("new_cases_plot"),
-                                checkboxGroupInput("chooseModel2", "Select Model(s)",
-                                                   choices = list("Simple linear regression",
-                                                                  "Quadratic regression",
-                                                                  "Cubic regression",
-                                                                  "Double Exponential Smoothing",
-                                                                  "7-day Rolling Average")))
-                       
+                                fluidRow(
+                                    column(
+                                        width = 4,
+                                        checkboxGroupInput("chooseModel2", "Select Model(s)",
+                                                           choices = list("Simple linear regression",
+                                                                          "Quadratic regression",
+                                                                          "Cubic regression",
+                                                                          "Double Exponential Smoothing", 
+                                                                          "7-day Rolling Average"))),
+                                    column(
+                                        width = 4,
+                                        div(id = "group3",
+                                            hidden(
+                                                sliderInput("alpha2", "Alpha",
+                                                            min = 0, max = 1, value = 0.1)
+                                            ),
+                                            hidden(
+                                                checkboxInput("checkAlpha2", "Use the optimum Alpha value", FALSE)
+                                            )
+                                            
+                                        )
+                                    ),
+                                    column(
+                                        width = 4,
+                                        div(id = "group4",
+                                            hidden(
+                                                sliderInput("beta2", "Beta",
+                                                            min = 0, max = 1, value = 0.1)
+                                            ),
+                                            hidden(
+                                                checkboxInput("checkBeta2", "Use the optimum Beta value", FALSE)
+                                            )
+                                        )
+                                    )
+                                )
+                       )
             )
-            
-            
-            
-            
-            
             
         )
     )

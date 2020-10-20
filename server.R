@@ -10,6 +10,7 @@
 # use this to debug
 # shiny::runApp(display.mode="showcase")
 library(shiny)
+library(shinyjs) # for hidden 
 library(ggplot2)
 library(dplyr)
 library(zoo)
@@ -45,14 +46,25 @@ server <- function(input, output, session) {
                 choices = c("Overall State" = "allState", subset(countyNames, state == stateName(), c("county"))))
   })
   
-  output$chooseModel <- renderUI({
-    if (input$chooseModel == "Double Exponential Smoothing"){
-      sliderInput("slider_alpha", h3("Alpha"),
-                  min = 0, max = 1, value = 0.1)
-      
-      sliderInput("slider_beta", h3("Beta"),
-                  min = 0, max = 1, value = 0.1)
-    }
+  # if choose an alpha value
+  # render 
+  de_mod1 <- reactive({
+    "Double Exponential Smoothing" %in% input$chooseModel1
+  })
+
+  
+  observe({
+    toggle(id = "alpha1", condition = "Double Exponential Smoothing" %in% input$chooseModel1)
+    toggle(id = "beta1", condition = "Double Exponential Smoothing" %in% input$chooseModel1)
+    toggle(id = "checkAlpha1", condition = "Double Exponential Smoothing" %in% input$chooseModel1)
+    toggle(id = "checkBeta1", condition = "Double Exponential Smoothing" %in% input$chooseModel1)
+  })
+  
+  observe({
+    toggle(id = "alpha2", condition = "Double Exponential Smoothing" %in% input$chooseModel2)
+    toggle(id = "beta2", condition = "Double Exponential Smoothing" %in% input$chooseModel2)
+    toggle(id = "checkAlpha2", condition = "Double Exponential Smoothing" %in% input$chooseModel2)
+    toggle(id = "checkBeta2", condition = "Double Exponential Smoothing" %in% input$chooseModel2)
   })
   
   countyName <- reactive({
@@ -94,8 +106,16 @@ server <- function(input, output, session) {
     
     if(yvar == "cases"){
       days_average = "case_7days"
+      a = input$alpha1
+      b = input$beta1
+      checkA = input$checkAlpha1
+      checkB = input$checkBeta1
     }else{
       days_average = "case_7days_new"
+      a = input$alpha2
+      b = input$beta2
+      checkA = input$checkAlpha2
+      checkB = input$checkBeta2
     }
 
     # plot the graph
@@ -212,17 +232,32 @@ server <- function(input, output, session) {
     
     
     if(doule_smo){
-      print("yes1")
-      pred.exp <- ts(yvar, start = c(2020, 3, 29))
+      pred.exp <- ts(dataSet[[yvar]])
       
       #new <- new %>%
       #mutate(dou_exp = pred.exp)
       
       #mod=ses(double_exp,alpha=0.05,beta = 0.1,initial="simple")
-      mod = HoltWinters(pred.exp, gamma = FALSE)
+      mod = HoltWinters(pred.exp, alpha = a, beta = b, gamma = FALSE)
+      if(checkA == TRUE & checkB == TRUE){
+        mod = HoltWinters(pred.exp, gamma = FALSE)
+      }else if(checkA == TRUE & checkB == FALSE){
+        mod = HoltWinters(pred.exp, beta = b, gamma = FALSE)
+      }else if(checkA == FALSE & checkB == TRUE){
+        mod = HoltWinters(pred.exp, alpha = a, gamma = FALSE)
+      }
+      
+      pred.de = c(0, 0, mod$fitted[, 1])
+      
+      #print(head(de_pred))
+      #new <- new %>%
+      #mutate(doubleExp = pred.de)
+      
+      
       my_plot <-
-        ts.plot(mod$fitted,col=c("red","blue"))
-      #ts.plot(mod)
+        my_plot +
+        geom_line(data = dataSet, mapping = aes(x = date, y = pred.de), size=1, colour="plum2")
+      
       
       
     }
