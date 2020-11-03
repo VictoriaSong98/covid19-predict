@@ -1,0 +1,209 @@
+---
+title: "sir_mod"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(readr)
+library(deSolve)
+library(reshape2)
+library(ggplot2)
+```
+
+```{r}
+county_data <- read_csv("data/us-counties.csv")
+state_data <- read_csv("data/us-states.csv")
+```
+
+```{r}
+s = 999
+i = 100000
+r = 0
+
+b = 0.5
+g = 0.2
+
+ti = seq(as.Date("2020-03-10"), as.Date("2020-04-10"), by = "day")
+tii = 1:length(ti)
+
+combined = bind_cols(ti, tii)
+
+para = c(beta = b, gamma = g)
+init = c(S = s, I = i, R = r)
+
+eqn <- function(time, state, parameters){
+  with(as.list(c(state,parameters)),{
+    N=S+I+R
+    lambda=b*(I/N) 
+    dS=-lambda*S
+    dI=lambda*S-g*I
+    dR=g*I
+    return(list(c(dS, dI, dR)))
+  })
+}
+
+out<-as.data.frame(ode(y=init, times=tii, func = eqn, parms=para))
+names(out) = c("time", "S", "I", "R")
+
+
+out_long=melt(out,id="time")
+
+# ggplot(data = out_long, aes(x = time, y = value/1000000, colour = variable, group = variable)) +
+#   geom_line() +
+#   xlab("Time (days)")+
+#   ylab("Proportion of the population")+
+#   scale_color_discrete(name="State")
+
+ggplot(data = out_long,          
+       aes(x = time, y = value/1000000, colour = variable, group = variable)) +  
+  geom_line()
+```
+
+
+```{r}
+initial_state_values=c(S=999999,I=1,R=0)
+parameters=c(beta=0.5, gamma=0.20)
+
+# Time points
+
+time=seq(from=1,to=1000,by=1)
+
+# SIR model function 
+
+sir_model <- function(time,state,parameters){
+  with(as.list(c(state,parameters)),{
+    N=S+I+R
+    lambda=beta*(I/N) 
+    dS=-lambda*S
+    dI=lambda*S-gamma*I
+    dR=gamma*I
+    
+    return(list(c(dS,dI,dR)))
+  }
+  )
+}
+
+
+#Solving the differential equations
+output<-as.data.frame(ode(y=initial_state_values,func = sir_model,parms=parameters,times = time))
+
+out_long2=melt(output,id="time")
+# To plot the proportion of susceptible, infected and recovered individuals over time
+ggplot(data = out_long2,          
+       aes(x = time, y = value/1000000, colour = variable, group = variable)) +  
+  geom_line() +xlab("Time (days)")+ylab("Proportion of the population")+scale_color_discrete(name="State")
+
+```
+
+
+
+### test logistic
+
+```{r}
+# initial value P_0
+initial_state_values=c(P = 10)
+# k (rate) and l (maximum case volumn)
+parameters=c(K=0.5, L=1000)
+
+time=seq(from=1,to=1000,by=1)
+
+logi_eqn <- function(P0, K, L, time){
+  N_t = rep(NA, length(time))#empty vector
+  N_t[1] = P0 #initial pop size
+  for (i in 2: length (time)){
+    N_t[i] = K / (1 + ((K - P0) / P0) * exp(-L * time[i]))
+    }
+
+  return(N_t)
+}
+
+N_t= logi_eqn(P0 = 10, K=0.3,L=10000, time=time)
+
+```
+
+
+```{r}
+stl <- county_data %>%
+  filter(county == "New York City" & state == "New York")
+logi = nls(cases ~ SSlogis(log(conc), Asym, xmid, scal), stl)
+
+ggplot(data = logi, aes(x = date, y = cases))+
+  geom_line()
+summary(logi)
+```
+
+```{r}
+logi <- nls(predict_cases ~ K * P_0 * exp(r * t) / (K + P_0 * (exp(r * t) - 1)), 
+           start = list(K = 1000, P_0 = 10, r = 0.3, t = 0))
+```
+
+
+```{r}
+time <- c(1,2,3,5,10,15,20,25,30,35)
+population <- c(2.8,4.2,3.5,6.3,15.7,21.3,23.7,25.1,25.8,25.9)
+
+
+logisticModel <- nls(population ~ K / (1 + exp(Po + r * time)), start=list(Po=0, r=-0.211, K=30))
+
+x <- seq(min(time), max(time), length=100)
+y <- predict(logisticModel, list(time=x))
+points(x, y, type='l', col='blue')
+
+```
+
+
+
+
+
+
+
+
+```{r}
+grow_logistic_yshift <- function(time, parms) {
+  with(as.list(parms), {
+    y <- (K * y0) / (y0 + (K - y0) * exp(-mumax * time)) + y_shift
+    as.matrix(data.frame(time = time, y = y))
+  })
+}
+
+# time <- 1:10
+#time <- seq(from=1,to=100,by=1)
+
+ti = seq(as.Date("2020-03-10"), as.Date("2020-04-10"), by = "day")
+print(length(ti))
+time = 1:length(ti)
+out <- grow_logistic_yshift(time, parms = list(y0 = 1, mumax = 0.5, K = 10, y_shift = 2))
+View(out)
+plot(time, out[, "y"], type = "b")
+```
+
+
+```{r}
+grow_logistic <- function(time, parms) {
+  with(as.list(parms), {
+    cases <- (K * P_0 * exp(r * time)) / (K + P_0 * (exp(r * time) - 1))
+    print(cases)
+    data.frame(time = time, cases = cases)
+  })
+}
+
+#time <- seq(from=1,to=100,by=1)
+
+ti = seq(as.Date("2020-03-10"), as.Date("2020-04-10"), by = "day")
+print(length(ti))
+time = 1:length(ti)
+print(length(tii))
+
+out <- grow_logistic_yshift(time, parms = list(P_0 = 100, r = 0.5, K = 10000))
+View(out)
+ggplot(out, aes(x = time, y = cases))+
+  geom_line()
+```
+
+
+
+

@@ -16,6 +16,8 @@ library(dplyr)
 library(zoo)
 library(ggthemes)
 library(forecast)
+library(deSolve)
+library(reshape2)
 
 # Load data ----
 library(readr)
@@ -58,6 +60,15 @@ server <- function(input, output, session) {
     toggle(id = "beta1", condition = "Double Exponential Smoothing" %in% input$chooseModel1)
     toggle(id = "checkAlpha1", condition = "Double Exponential Smoothing" %in% input$chooseModel1)
     toggle(id = "checkBeta1", condition = "Double Exponential Smoothing" %in% input$chooseModel1)
+    
+    toggle(id = "cumulative_sir", condition = "Simple SIR" %in% input$chooseModel1)
+    toggle(id = "Svalue1", condition = "Simple SIR" %in% input$chooseModel1)
+    toggle(id = "Rvalue1", condition = "Simple SIR" %in% input$chooseModel1)
+    toggle(id = "infection1", condition = "Simple SIR" %in% input$chooseModel1)
+    toggle(id = "recovery1", condition = "Simple SIR" %in% input$chooseModel1)
+    
+    toggle(id = "Rate_value1", condition = "Logistic" %in% input$chooseModel1)
+    toggle(id = "Kvalue1", condition = "Logistic" %in% input$chooseModel1)
   })
   
   observe({
@@ -65,6 +76,17 @@ server <- function(input, output, session) {
     toggle(id = "beta2", condition = "Double Exponential Smoothing" %in% input$chooseModel2)
     toggle(id = "checkAlpha2", condition = "Double Exponential Smoothing" %in% input$chooseModel2)
     toggle(id = "checkBeta2", condition = "Double Exponential Smoothing" %in% input$chooseModel2)
+    
+    toggle(id = "new_sir", condition = "Simple SIR" %in% input$chooseModel2)
+    
+    toggle(id = "Svalue2", condition = "Simple SIR" %in% input$chooseModel2)
+    toggle(id = "Ivalue2", condition = "Simple SIR" %in% input$chooseModel2)
+    toggle(id = "Rvalue2", condition = "Simple SIR" %in% input$chooseModel2)
+    toggle(id = "infection2", condition = "Simple SIR" %in% input$chooseModel2)
+    toggle(id = "recovery2", condition = "Simple SIR" %in% input$chooseModel2)
+    
+    toggle(id = "Rate_value2", condition = "Logistic" %in% input$chooseModel2)
+    toggle(id = "Kvalue2", condition = "Logistic" %in% input$chooseModel2)
   })
   
   countyName <- reactive({
@@ -106,16 +128,26 @@ server <- function(input, output, session) {
     
     if(yvar == "cases"){
       days_average = "case_7days"
+      # for double exponential smoothing
       a = input$alpha1
       b = input$beta1
       checkA = input$checkAlpha1
       checkB = input$checkBeta1
+      
+      # for logistic 
+      r = input$Rate_value1
+      k = input$Kvalue1
     }else{
       days_average = "case_7days_new"
+      # for double exponential smoothing
       a = input$alpha2
       b = input$beta2
       checkA = input$checkAlpha2
       checkB = input$checkBeta2
+      
+      # for logistic 
+      r = input$Rate_value2
+      k = input$Kvalue2
     }
 
     # plot the graph
@@ -131,6 +163,7 @@ server <- function(input, output, session) {
     cub <- "Cubic regression" %in% chooseMod
     doule_smo <- "Double Exponential Smoothing" %in% chooseMod
     ave <- "7-day Rolling Average" %in% chooseMod
+    logi <- "Logistic" %in% chooseMod
     
     new <- data.frame(date = seq(dateRange[1], dateRange[2], by = "day"))
     
@@ -228,6 +261,7 @@ server <- function(input, output, session) {
         my_plot <- my_plot +
           ylim(0, max(dataSet[[yvar]], na.rm = TRUE) * 2)
       } 
+      
     }
     
     
@@ -257,9 +291,6 @@ server <- function(input, output, session) {
       my_plot <-
         my_plot +
         geom_line(data = dataSet, mapping = aes(x = date, y = pred.de), size=1, colour="plum2")
-      
-      
-      
     }
     
     if (ave){
@@ -268,6 +299,37 @@ server <- function(input, output, session) {
         geom_line(data = dataSet, mapping = aes(x = date, y = get(days_average)), size=1, colour="orangered")+
         labs (y = "7-day Rolling average", x = "Date")+
         xlim(dateRange[1], dateRange[2])
+    }
+    
+    if (logi){
+      
+      grow_logistic <- function(time, parms) {
+        with(as.list(parms), {
+          cases <- (K * P_0 * exp(R * time)) / (K + P_0 * (exp(R * time) - 1))
+          data.frame(time = time, cases = cases)
+        })
+      }
+      
+      
+      
+      time_date = seq(dateRange[1], dateRange[2], by = "day")
+      time = 1:length(time_date)
+      
+      p_value <- dataSet %>%
+        filter(date == dateRange[1])
+      
+      p_0 = p_value[[yvar]][1]
+      print(p_0)
+      if (p_0 == 0){
+        p_0 = 1
+      }
+      
+      out <- grow_logistic(time, parms = list(P_0 = p_0, R = r, K = k))
+      out <- bind_cols(out, time_date)
+      names(out) = c("time_num", "cases", "time_date")
+      View(out)
+      my_plot <- my_plot +
+        geom_line(data = out, aes(x = time_date, y = cases), colour="tan2", size = 1)
     }
     
     # add vertical line
@@ -283,10 +345,95 @@ server <- function(input, output, session) {
   }
   
   
+  
+  sirPlot <- function(dataSet, yvar, chooseMod, dateRange, future_date){
+    
+    # inde = beta value, reco = gamma value
+    if(yvar == "cases"){
+      s = input$Svalue1
+      r = input$Rvalue1
+      
+      infe = input$infection1
+      reco = input$recovery1
+    }else{
+      s = input$Svalue2
+      r = input$Rvalue2
+      
+      infe = input$infection2
+      reco = input$recovery2
+    }
+    
+    sir <- "Simple SIR" %in% chooseMod
+
+    # time sequence in date form
+    
+    time_date = seq(dateRange[1], dateRange[2], by = "day")
+    
+    
+    # time sequence in numeric form
+    time_number = 1:length(time_date)
+
+    
+    i_value <- dataSet %>%
+      filter(date == dateRange[1])
+    
+    i = i_value[[yvar]][1]
+    
+    if (i == 0){
+      i = 1
+    }
+    
+    #ti = seq("2020-01-01", "2020-03-10", by = day)
+    #ti=seq(from=1,to=100,by=1)
+    para = c(beta = infe, gamma = reco)
+    init = c(S = s, I = i, R = r)
+    
+    sir_eqn <- function(time, state, parameters){
+      with(as.list(c(state, parameters)),{
+        N = S + I + R
+        lambda = beta * (I/N) 
+        dS = -lambda * S
+        dI = lambda * S - gamma * I
+        dR = gamma * I
+        return(list(c(dS, dI, dR)))
+      })
+    }
+    
+    # ode: solve for ordinary differential equation
+    out<-as.data.frame(ode(y=init, times=time_number, func = sir_eqn, parms=para))
+    
+    out <- bind_cols(out, time_date)
+    
+    names(out) = c("time_num", "S", "I", "R", "time_dates")
+    
+    #out_long = melt(out,id="time_dates")
+    #View(out_long)
+    
+    # my_plot_sir = ggplot(data = out_long, aes(x = time_dates, y = value, colour = variable, group = variable)) + 
+    #   geom_line()+
+    #   xlab("Date")+
+    #   ylab("Positive cases")+
+    #   theme_igray()
+    
+    my_plot_sir = ggplot(data = out, aes(x = as.Date(time_dates))) + 
+      geom_line(aes(y = S, colour = "S"))+
+      geom_line(aes(y = I, colour = "I"))+
+      geom_line(aes(y = R, colour = "R"))+
+      xlab("Date")+
+      ylab("Positive cases")+
+      theme_igray()
+    
+    my_plot_sir
+  }
+  
   output$cumulative_plot = renderPlot({
 
     bigPlot(dataSet = plotData(), yvar = "cases", chooseMod = input$chooseModel1, dateRange = input$dates, input$futureDate)
     
+  })
+  
+  output$cumulative_sir = renderPlot({
+    sirPlot(dataSet = plotData(), yvar = "cases", chooseMod = input$chooseModel1, dateRange = input$dates, input$futureDate)
   })
   
   
@@ -297,5 +444,8 @@ server <- function(input, output, session) {
     
   })
   
+  output$new_sir = renderPlot({
+    sirPlot(dataSet = plotData(), yvar = "newcases", chooseMod = input$chooseModel2, dateRange = input$dates, input$futureDate)
+  })
   
 }
