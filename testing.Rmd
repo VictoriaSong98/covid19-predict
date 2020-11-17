@@ -8,6 +8,15 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ```{r}
-max(1,3)
+library(readr)
+state_data <- read_csv("data/us-states.csv")
+```
+
+```{r}
+nys = subset(state_data, state == "New York")
+
+nys_small = subset(nys, date >= "2020-4-1" & date < "2020-5-1")
+
+nys_small$cases[1]
 ```
 

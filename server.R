@@ -16,21 +16,37 @@ library(dplyr)
 library(zoo)
 library(ggthemes)
 library(forecast)
-library(deSolve)
-library(reshape2)
+library(deSolve) # for SIR and logistic
+library(reshape2) # for SIR
+library(RCurl) # for viewing csv file from github
 
 # Load data ----
 library(readr)
 
-# county_data <- read_csv("data/us_counties_covid19_daily.csv")
+# get_county <- getURL("https://raw.githubusercontent.com/nytimes/covid-19-data/master/us-counties.csv")
+# county_data <- read.csv(text = get_county)
+# county_data <- county_data %>%
+#   mutate(date = as.Date(date),
+#          county = as.character(county),
+#          state = as.character(state),
+#          fips = as.character(fips),
+#          cases = as.integer(cases),
+#          deaths = as.integer(deaths))
 county_data <- read_csv("data/us-counties.csv")
+
+# get_state <- getURL("https://raw.githubusercontent.com/nytimes/covid-19-data/master/us-states.csv")
+# state_data <- read.csv(text = get_state)
+# 
+# state_data <- state_data %>%
+#   mutate(date = as.Date(date),
+#          state = as.character(state),
+#          fips = as.character(fips),
+#          cases = as.integer(cases),
+#          deaths = as.integer(deaths))
 state_data <- read_csv("data/us-states.csv")
 
 countyNames <- read_csv("data/countyNames.csv")
-#tryStates = c("California", "New York", "New Jersey")
 
-# allStates = countyNames[, c("state")]
-# allStates = unique(allStates)
 
 
 # Define server logic required to draw a histogram
@@ -38,7 +54,7 @@ server <- function(input, output, session) {
   
   
   stateName <- reactive({
-    input$selectState
+    req(input$selectState)
   })
   
   
@@ -48,12 +64,109 @@ server <- function(input, output, session) {
                 choices = c("Overall State" = "allState", subset(countyNames, state == stateName(), c("county"))))
   })
   
-  # if choose an alpha value
-  # render 
-  de_mod1 <- reactive({
-    "Double Exponential Smoothing" %in% input$chooseModel1
+  # create a function that change value of K here
+  dynamic_k <- reactive({
+    if (countyName() == "allState"){
+      temp = subset(state_data,state == stateName())
+    }else{
+      temp = subset(county_data,state == stateName() & county == countyName())
+    }
+    
+    # adding "newcases" variable in case the user wants to render new cases plot
+    temp <- temp %>%
+      mutate(newcases = c(NA, diff(cases)))
+    maxK = 1
+    if("Logistic" %in% input$chooseModel1 & input$tabs == "Cumulative Cases"){
+      # case 1: when in cumulative tab
+      maxK = max(temp$cases) * 2
+      print("maxk1")
+      print(maxK)
+      View(temp)
+    }else if("Logistic" %in% input$chooseModel2 & input$tabs == "Daily Cases"){
+      # case 2: when in daily tab
+      maxK = max(temp$newcases, na.rm = TRUE) * 2
+      # View(temp)
+      print("maxk2")
+      print(maxK)
+    }
+    return(maxK)
   })
-
+  
+  
+  output$inputKvalue <- renderUI({
+    #hidden(
+      numericInput("K_value", "Maximum case volume (K):",
+                   value = dynamic_k())
+    #)
+  })
+  
+  dynamic_s <- reactive({
+    if (countyName() == "allState"){
+      temp = subset(state_data,state == stateName())
+    }else{
+      temp = subset(county_data,state == stateName() & county == countyName())
+    }
+    
+    temp = subset(temp, date >= input$dates[1] & date <= input$dates[2])
+    # adding "newcases" variable in case the user wants to render new cases plot
+    # temp <- temp %>%
+    #   mutate(newcases = c(NA, diff(cases)))
+    maxS = 1
+    #if("Logistic" %in% input$chooseModel1 & input$tabs == "Cumulative Cases"){
+    if("Simple SIR" %in% input$chooseModel1 | "Simple SIR" %in% input$chooseModel2 | input$tabs == "SIR Model"){
+      # case 1: when in cumulative tab
+      maxS = max(temp$cases) * 10
+      #print("maxk1")
+      #print(maxS)
+      #View(temp)
+    }
+    # }else if("Logistic" %in% input$chooseModel2 & input$tabs == "Daily Cases"){
+    #   # case 2: when in daily tab
+    #   maxK = max(temp$newcases, na.rm = TRUE) * 2
+    #   # View(temp)
+    #   print("maxk2")
+    #   print(maxK)
+    # }
+    return(maxS)
+  })
+  
+  output$inputSvalue <- renderUI({
+    #hidden(
+      numericInput("Svalue", h5("Input the S (Susceptible) value:"), value = dynamic_s())
+    #)
+  })
+  
+  dynamic_i <- reactive({
+    if (countyName() == "allState"){
+      temp = subset(state_data,state == stateName())
+    }else{
+      temp = subset(county_data,state == stateName() & county == countyName())
+    }
+    temp = subset(temp, date >= input$dates[1] & date <= input$dates[2])
+    View(temp)
+    # adding "newcases" variable in case the user wants to render new cases plot
+    # temp <- temp %>%
+    #   mutate(newcases = c(NA, diff(cases)))
+    maxI = 1
+    if("Simple SIR" %in% input$chooseModel1 | "Simple SIR" %in% input$chooseModel2 | input$tabs == "SIR Model"){
+      maxI = temp$cases[1]
+    }
+    # else if("Logistic" %in% input$chooseModel2 & input$tabs == "Daily Cases"){
+    #   # case 2: when in daily tab
+    #   maxK = max(temp$newcases, na.rm = TRUE) * 2
+    #   # View(temp)
+    #   print("maxk2")
+    #   print(maxK)
+    # }
+    return(maxI)
+  })
+  
+  output$inputIvalue <- renderUI({
+    #hidden(
+      numericInput("Ivalue", h5("Input the I (Infected) value:"), value = dynamic_i())
+    #)
+  })
+  
   
   observe({
     toggle(id = "alpha1", condition = "Double Exponential Smoothing" %in% input$chooseModel1)
@@ -62,13 +175,6 @@ server <- function(input, output, session) {
     toggle(id = "checkBeta1", condition = "Double Exponential Smoothing" %in% input$chooseModel1)
     
     toggle(id = "cumulative_sir", condition = "Simple SIR" %in% input$chooseModel1)
-    toggle(id = "Svalue1", condition = "Simple SIR" %in% input$chooseModel1)
-    toggle(id = "Rvalue1", condition = "Simple SIR" %in% input$chooseModel1)
-    toggle(id = "infection1", condition = "Simple SIR" %in% input$chooseModel1)
-    toggle(id = "recovery1", condition = "Simple SIR" %in% input$chooseModel1)
-    
-    toggle(id = "Rate_value1", condition = "Logistic" %in% input$chooseModel1)
-    toggle(id = "Kvalue1", condition = "Logistic" %in% input$chooseModel1)
   })
   
   observe({
@@ -78,19 +184,23 @@ server <- function(input, output, session) {
     toggle(id = "checkBeta2", condition = "Double Exponential Smoothing" %in% input$chooseModel2)
     
     toggle(id = "new_sir", condition = "Simple SIR" %in% input$chooseModel2)
-    
-    toggle(id = "Svalue2", condition = "Simple SIR" %in% input$chooseModel2)
-    toggle(id = "Ivalue2", condition = "Simple SIR" %in% input$chooseModel2)
-    toggle(id = "Rvalue2", condition = "Simple SIR" %in% input$chooseModel2)
-    toggle(id = "infection2", condition = "Simple SIR" %in% input$chooseModel2)
-    toggle(id = "recovery2", condition = "Simple SIR" %in% input$chooseModel2)
-    
-    toggle(id = "Rate_value2", condition = "Logistic" %in% input$chooseModel2)
-    toggle(id = "Kvalue2", condition = "Logistic" %in% input$chooseModel2)
   })
   
+  observe({
+    toggle(id = "Rate_value", condition = ("Logistic" %in% input$chooseModel1) | ("Logistic" %in% input$chooseModel2))
+    toggle(id = "K_value", condition = ("Logistic" %in% input$chooseModel1) | ("Logistic" %in% input$chooseModel2))
+    
+    toggle(id = "Svalue", condition = ("Simple SIR" %in% input$chooseModel1) | ("Simple SIR" %in% input$chooseModel2) | (input$tabs == "SIR Model"))
+    toggle(id = "Ivalue", condition = ("Simple SIR" %in% input$chooseModel1) | ("Simple SIR" %in% input$chooseModel2) | (input$tabs == "SIR Model"))
+    toggle(id = "Rvalue", condition = ("Simple SIR" %in% input$chooseModel1) | ("Simple SIR" %in% input$chooseModel2) | (input$tabs == "SIR Model"))
+    toggle(id = "infection", condition = ("Simple SIR" %in% input$chooseModel1) | ("Simple SIR" %in% input$chooseModel2) | (input$tabs == "SIR Model"))
+    toggle(id = "recovery", condition = ("Simple SIR" %in% input$chooseModel1) | ("Simple SIR" %in% input$chooseModel2) | (input$tabs == "SIR Model"))
+  })
+  
+  
+  
   countyName <- reactive({
-    input$chooseCounty
+    req(input$chooseCounty)
   })
   
   plotData <- reactive({
@@ -135,8 +245,8 @@ server <- function(input, output, session) {
       checkB = input$checkBeta1
       
       # for logistic 
-      r = input$Rate_value1
-      k = input$Kvalue1
+      # r = input$Rate_value1
+      # k = input$Kvalue1
     }else{
       days_average = "case_7days_new"
       # for double exponential smoothing
@@ -146,10 +256,10 @@ server <- function(input, output, session) {
       checkB = input$checkBeta2
       
       # for logistic 
-      r = input$Rate_value2
-      k = input$Kvalue2
+      # r = input$Rate_value2
+      # k = input$Kvalue2
     }
-
+    
     # plot the graph
     my_plot <- ggplot(dataSet) +
       geom_line(mapping = aes(x = date, y = get(yvar)), size=1.5) +
@@ -164,6 +274,7 @@ server <- function(input, output, session) {
     doule_smo <- "Double Exponential Smoothing" %in% chooseMod
     ave <- "7-day Rolling Average" %in% chooseMod
     logi <- "Logistic" %in% chooseMod
+    sir <- "Simple SIR" %in% chooseMod
     
     new <- data.frame(date = seq(dateRange[1], dateRange[2], by = "day"))
     
@@ -261,17 +372,12 @@ server <- function(input, output, session) {
         my_plot <- my_plot +
           ylim(0, max(dataSet[[yvar]], na.rm = TRUE) * 2)
       } 
-      
     }
     
     
     if(doule_smo){
       pred.exp <- ts(dataSet[[yvar]])
       
-      #new <- new %>%
-      #mutate(dou_exp = pred.exp)
-      
-      #mod=ses(double_exp,alpha=0.05,beta = 0.1,initial="simple")
       mod = HoltWinters(pred.exp, alpha = a, beta = b, gamma = FALSE)
       if(checkA == TRUE & checkB == TRUE){
         mod = HoltWinters(pred.exp, gamma = FALSE)
@@ -282,11 +388,6 @@ server <- function(input, output, session) {
       }
       
       pred.de = c(0, 0, mod$fitted[, 1])
-      
-      #print(head(de_pred))
-      #new <- new %>%
-      #mutate(doubleExp = pred.de)
-      
       
       my_plot <-
         my_plot +
@@ -302,6 +403,11 @@ server <- function(input, output, session) {
     }
     
     if (logi){
+      logi_r = input$Rate_value
+      k = input$K_value
+      
+      print("k value")
+      print(k)
       
       grow_logistic <- function(time, parms) {
         with(as.list(parms), {
@@ -319,19 +425,83 @@ server <- function(input, output, session) {
         filter(date == dateRange[1])
       
       p_0 = p_value[[yvar]][1]
-      print(p_0)
       if (p_0 == 0){
         p_0 = 1
       }
       
-      out <- grow_logistic(time, parms = list(P_0 = p_0, R = r, K = k))
+      out <- grow_logistic(time, parms = list(P_0 = p_0, R = logi_r, K = k))
       out <- bind_cols(out, time_date)
       names(out) = c("time_num", "cases", "time_date")
-      View(out)
-      my_plot <- my_plot +
-        geom_line(data = out, aes(x = time_date, y = cases), colour="tan2", size = 1)
+      
+      out <- out %>%
+        mutate(newCases = c(0, diff(cases)))
+      
+      if (yvar == "cases"){
+        my_plot <- my_plot +
+          geom_line(data = out, aes(x = time_date, y = cases), colour="tan2", size = 1)
+      }else if(yvar == "newcases"){
+        my_plot <- my_plot +
+          geom_line(data = out, aes(x = time_date, y = newCases), colour="tan2", size = 1)
+      }
+      
     }
     
+    if (sir){
+      s = input$Svalue
+      i = input$Ivalue
+      sir_r = input$Rvalue
+      infe = input$infection
+      reco = input$recovery
+      
+      
+      sir_time_date = seq(dateRange[1], dateRange[2], by = "day")
+      
+      
+      # time sequence in numeric form
+      time_number = 1:length(sir_time_date)
+      
+      
+      i_value <- dataSet %>%
+        filter(date == dateRange[1])
+      
+      para = c(beta = infe, gamma = reco)
+      init = c(S = s, I = i, R = sir_r)
+      
+      sir_eqn <- function(time, state, parameters){
+        with(as.list(c(state, parameters)),{
+          N = S + I + R
+          lambda = beta * (I/N) 
+          dS = -lambda * S
+          dI = lambda * S - gamma * I
+          dR = gamma * I
+          return(list(c(dS, dI, dR)))
+        })
+      }
+      
+      # ode: solve for ordinary differential equation
+      out_sir <- as.data.frame(ode(y=init, times=time_number, func = sir_eqn, parms=para))
+      
+      out_sir <- bind_cols(out_sir, sir_time_date)
+      
+      names(out_sir) = c("time_num", "S", "I", "R", "time_dates")
+      
+      # combine I and R for plotting on cumulative window
+      out_sir <- out_sir %>%
+        mutate(I_R = I + R)
+      
+      # add new cases for I+R
+      out_sir <- out_sir %>%
+        mutate(newI_R = c(0, diff(I_R)))
+      
+      View(out_sir)
+      if (yvar == "cases"){
+        my_plot <- my_plot +
+          geom_line(data = out_sir, aes(x = time_dates, y = I_R), colour="brown1", size = 1)
+      }else if(yvar == "newcases"){
+        my_plot <- my_plot +
+          geom_line(data = out_sir, aes(x = time_dates, y = newI_R), colour="brown1", size = 1)
+      }
+    }
     # add vertical line
     my_plot <- my_plot +
       annotate("segment", colour = "purple",
@@ -346,47 +516,22 @@ server <- function(input, output, session) {
   
   
   
-  sirPlot <- function(dataSet, yvar, chooseMod, dateRange, future_date){
+  sirPlot <- function(dataSet, dateRange){
     
-    # inde = beta value, reco = gamma value
-    if(yvar == "cases"){
-      s = input$Svalue1
-      r = input$Rvalue1
-      
-      infe = input$infection1
-      reco = input$recovery1
-    }else{
-      s = input$Svalue2
-      r = input$Rvalue2
-      
-      infe = input$infection2
-      reco = input$recovery2
-    }
-    
-    sir <- "Simple SIR" %in% chooseMod
+    s = input$Svalue
+    i = input$Ivalue
+    sir_r = input$Rvalue
+    infe = input$infection
+    reco = input$recovery
 
-    # time sequence in date form
-    
     time_date = seq(dateRange[1], dateRange[2], by = "day")
     
     
     # time sequence in numeric form
     time_number = 1:length(time_date)
-
     
-    i_value <- dataSet %>%
-      filter(date == dateRange[1])
-    
-    i = i_value[[yvar]][1]
-    
-    if (i == 0){
-      i = 1
-    }
-    
-    #ti = seq("2020-01-01", "2020-03-10", by = day)
-    #ti=seq(from=1,to=100,by=1)
     para = c(beta = infe, gamma = reco)
-    init = c(S = s, I = i, R = r)
+    init = c(S = s, I = i, R = sir_r)
     
     sir_eqn <- function(time, state, parameters){
       with(as.list(c(state, parameters)),{
@@ -406,19 +551,10 @@ server <- function(input, output, session) {
     
     names(out) = c("time_num", "S", "I", "R", "time_dates")
     
-    #out_long = melt(out,id="time_dates")
-    #View(out_long)
-    
-    # my_plot_sir = ggplot(data = out_long, aes(x = time_dates, y = value, colour = variable, group = variable)) + 
-    #   geom_line()+
-    #   xlab("Date")+
-    #   ylab("Positive cases")+
-    #   theme_igray()
-    
     my_plot_sir = ggplot(data = out, aes(x = as.Date(time_dates))) + 
-      geom_line(aes(y = S, colour = "S"))+
-      geom_line(aes(y = I, colour = "I"))+
-      geom_line(aes(y = R, colour = "R"))+
+      geom_line(aes(y = S, colour = "S"), size = 1)+
+      geom_line(aes(y = I, colour = "I"), size = 1)+
+      geom_line(aes(y = R, colour = "R"), size = 1)+
       xlab("Date")+
       ylab("Positive cases")+
       theme_igray()
@@ -427,13 +563,9 @@ server <- function(input, output, session) {
   }
   
   output$cumulative_plot = renderPlot({
-
+    
     bigPlot(dataSet = plotData(), yvar = "cases", chooseMod = input$chooseModel1, dateRange = input$dates, input$futureDate)
     
-  })
-  
-  output$cumulative_sir = renderPlot({
-    sirPlot(dataSet = plotData(), yvar = "cases", chooseMod = input$chooseModel1, dateRange = input$dates, input$futureDate)
   })
   
   
@@ -444,8 +576,8 @@ server <- function(input, output, session) {
     
   })
   
-  output$new_sir = renderPlot({
-    sirPlot(dataSet = plotData(), yvar = "newcases", chooseMod = input$chooseModel2, dateRange = input$dates, input$futureDate)
-  })
   
+  output$sir_model_plot = renderPlot({
+    sirPlot(dataSet = plotData(), dateRange = input$dates)
+  })
 }
