@@ -23,28 +23,8 @@ library(RCurl) # for viewing csv file from github
 # Load data ----
 library(readr)
 
-# get_county <- getURL("https://raw.githubusercontent.com/nytimes/covid-19-data/master/us-counties.csv")
-# county_data <- read.csv(text = get_county)
-# county_data <- county_data %>%
-#   mutate(date = as.Date(date),
-#          county = as.character(county),
-#          state = as.character(state),
-#          fips = as.character(fips),
-#          cases = as.integer(cases),
-#          deaths = as.integer(deaths))
-county_data <- read_csv("data/us-counties.csv")
-
-# get_state <- getURL("https://raw.githubusercontent.com/nytimes/covid-19-data/master/us-states.csv")
-# state_data <- read.csv(text = get_state)
-# 
-# state_data <- state_data %>%
-#   mutate(date = as.Date(date),
-#          state = as.character(state),
-#          fips = as.character(fips),
-#          cases = as.integer(cases),
-#          deaths = as.integer(deaths))
-state_data <- read_csv("data/us-states.csv")
-
+county_data_first <- read_csv("data/us-counties.csv")
+state_data_first <- read_csv("data/us-states.csv")
 countyNames <- read_csv("data/countyNames.csv")
 
 
@@ -52,6 +32,45 @@ countyNames <- read_csv("data/countyNames.csv")
 # Define server logic required to draw a histogram
 server <- function(input, output, session) {
   
+  county_data <- reactiveValues(data = county_data_first)
+  
+  state_data <- reactiveValues(data = state_data_first)
+  
+  
+  observeEvent(input$updateDataset, {
+    # update the county data
+    get_county <- getURL("https://raw.githubusercontent.com/nytimes/covid-19-data/master/us-counties.csv")
+    county_data$data <- read.csv(text = get_county)
+    county_data$data <- county_data$data %>%
+      mutate(date = as.Date(date),
+             county = as.character(county),
+             state = as.character(state),
+             fips = as.character(fips),
+             cases = as.integer(cases),
+             deaths = as.integer(deaths))
+    
+    # update the state data
+    get_state <- getURL("https://raw.githubusercontent.com/nytimes/covid-19-data/master/us-states.csv")
+    state_data$data <- read.csv(text = get_state)
+    state_data$data <- state_data$data %>%
+      mutate(date = as.Date(date),
+             state = as.character(state),
+             fips = as.character(fips),
+             cases = as.integer(cases),
+             deaths = as.integer(deaths))
+  })
+  
+  output$lateset_date <- renderText({ 
+    paste("The latest date of the current dataset is: ", max(state_data$data$date))
+  })
+    
+  output$selected_var <- renderText({ 
+    if (countyName() == "allState"){
+      paste("You have selected", stateName(), "state")
+    }else{
+      paste("You have selected", countyName(), "county in", stateName(), "state")
+    }
+  })
   
   stateName <- reactive({
     req(input$selectState)
@@ -64,12 +83,13 @@ server <- function(input, output, session) {
                 choices = c("Overall State" = "allState", subset(countyNames, state == stateName(), c("county"))))
   })
   
+  
   # create a function that change value of K here
   dynamic_k <- reactive({
     if (countyName() == "allState"){
-      temp = subset(state_data,state == stateName())
+      temp = subset(state_data$data,state == stateName())
     }else{
-      temp = subset(county_data,state == stateName() & county == countyName())
+      temp = subset(county_data$data,state == stateName() & county == countyName())
     }
     
     # adding "newcases" variable in case the user wants to render new cases plot
@@ -79,15 +99,9 @@ server <- function(input, output, session) {
     if("Logistic" %in% input$chooseModel1 & input$tabs == "Cumulative Cases"){
       # case 1: when in cumulative tab
       maxK = max(temp$cases) * 2
-      print("maxk1")
-      print(maxK)
-      View(temp)
     }else if("Logistic" %in% input$chooseModel2 & input$tabs == "Daily Cases"){
       # case 2: when in daily tab
       maxK = max(temp$newcases, na.rm = TRUE) * 2
-      # View(temp)
-      print("maxk2")
-      print(maxK)
     }
     return(maxK)
   })
@@ -102,31 +116,18 @@ server <- function(input, output, session) {
   
   dynamic_s <- reactive({
     if (countyName() == "allState"){
-      temp = subset(state_data,state == stateName())
+      temp = subset(state_data$data,state == stateName())
     }else{
-      temp = subset(county_data,state == stateName() & county == countyName())
+      temp = subset(county_data$data,state == stateName() & county == countyName())
     }
     
     temp = subset(temp, date >= input$dates[1] & date <= input$dates[2])
-    # adding "newcases" variable in case the user wants to render new cases plot
-    # temp <- temp %>%
-    #   mutate(newcases = c(NA, diff(cases)))
     maxS = 1
     #if("Logistic" %in% input$chooseModel1 & input$tabs == "Cumulative Cases"){
     if("Simple SIR" %in% input$chooseModel1 | "Simple SIR" %in% input$chooseModel2 | input$tabs == "SIR Model"){
       # case 1: when in cumulative tab
       maxS = max(temp$cases) * 10
-      #print("maxk1")
-      #print(maxS)
-      #View(temp)
     }
-    # }else if("Logistic" %in% input$chooseModel2 & input$tabs == "Daily Cases"){
-    #   # case 2: when in daily tab
-    #   maxK = max(temp$newcases, na.rm = TRUE) * 2
-    #   # View(temp)
-    #   print("maxk2")
-    #   print(maxK)
-    # }
     return(maxS)
   })
   
@@ -138,26 +139,16 @@ server <- function(input, output, session) {
   
   dynamic_i <- reactive({
     if (countyName() == "allState"){
-      temp = subset(state_data,state == stateName())
+      temp = subset(state_data$data,state == stateName())
     }else{
-      temp = subset(county_data,state == stateName() & county == countyName())
+      temp = subset(county_data$data,state == stateName() & county == countyName())
     }
     temp = subset(temp, date >= input$dates[1] & date <= input$dates[2])
-    View(temp)
-    # adding "newcases" variable in case the user wants to render new cases plot
-    # temp <- temp %>%
-    #   mutate(newcases = c(NA, diff(cases)))
+
     maxI = 1
     if("Simple SIR" %in% input$chooseModel1 | "Simple SIR" %in% input$chooseModel2 | input$tabs == "SIR Model"){
       maxI = temp$cases[1]
     }
-    # else if("Logistic" %in% input$chooseModel2 & input$tabs == "Daily Cases"){
-    #   # case 2: when in daily tab
-    #   maxK = max(temp$newcases, na.rm = TRUE) * 2
-    #   # View(temp)
-    #   print("maxk2")
-    #   print(maxK)
-    # }
     return(maxI)
   })
   
@@ -204,10 +195,11 @@ server <- function(input, output, session) {
   })
   
   plotData <- reactive({
+    
     if (countyName() == "allState"){
-      temp = subset(state_data,state == stateName())
+      temp = subset(state_data$data,state == stateName())
     }else{
-      temp = subset(county_data,state == stateName() & county == countyName())
+      temp = subset(county_data$data,state == stateName() & county == countyName())
     }
     
     # adding "newcases" variable in case the user wants to render new cases plot
@@ -225,14 +217,6 @@ server <- function(input, output, session) {
     return(temp)
   })
   
-  output$selected_var <- renderText({ 
-    if (countyName() == "allState"){
-      paste("You have selected", stateName(), "state")
-    }else{
-      paste("You have selected", countyName(), "county in", stateName(), "state")
-    }
-  })
-  
   
   bigPlot <- function(dataSet, yvar, chooseMod, dateRange, future_date){
     
@@ -243,10 +227,6 @@ server <- function(input, output, session) {
       b = input$beta1
       checkA = input$checkAlpha1
       checkB = input$checkBeta1
-      
-      # for logistic 
-      # r = input$Rate_value1
-      # k = input$Kvalue1
     }else{
       days_average = "case_7days_new"
       # for double exponential smoothing
@@ -254,10 +234,6 @@ server <- function(input, output, session) {
       b = input$beta2
       checkA = input$checkAlpha2
       checkB = input$checkBeta2
-      
-      # for logistic 
-      # r = input$Rate_value2
-      # k = input$Kvalue2
     }
     
     # plot the graph
@@ -406,9 +382,6 @@ server <- function(input, output, session) {
       logi_r = input$Rate_value
       k = input$K_value
       
-      print("k value")
-      print(k)
-      
       grow_logistic <- function(time, parms) {
         with(as.list(parms), {
           cases <- (K * P_0 * exp(R * time)) / (K + P_0 * (exp(R * time) - 1))
@@ -493,7 +466,6 @@ server <- function(input, output, session) {
       out_sir <- out_sir %>%
         mutate(newI_R = c(0, diff(I_R)))
       
-      View(out_sir)
       if (yvar == "cases"){
         my_plot <- my_plot +
           geom_line(data = out_sir, aes(x = time_dates, y = I_R), colour="brown1", size = 1)
@@ -513,7 +485,6 @@ server <- function(input, output, session) {
     
     my_plot
   }
-  
   
   
   sirPlot <- function(dataSet, dateRange){
@@ -563,17 +534,13 @@ server <- function(input, output, session) {
   }
   
   output$cumulative_plot = renderPlot({
-    
     bigPlot(dataSet = plotData(), yvar = "cases", chooseMod = input$chooseModel1, dateRange = input$dates, input$futureDate)
-    
   })
   
   
   
   output$new_cases_plot = renderPlot({
-    
     bigPlot(dataSet = plotData(), yvar = "newcases", chooseMod = input$chooseModel2, dateRange = input$dates, input$futureDate)
-    
   })
   
   

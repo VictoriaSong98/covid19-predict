@@ -7,33 +7,8 @@ library(RCurl) # for viewing csv file from github
 
 # Load data ----
 library(readr)
-# county_data <- read_csv("data/us_counties_covid19_daily.csv")
 
-# get_county <- getURL("https://raw.githubusercontent.com/nytimes/covid-19-data/master/us-counties.csv")
-# county_data <- read.csv(text = get_county)
-# county_data <- county_data %>%
-#   mutate(date = as.Date(date),
-#          county = as.character(county),
-#          state = as.character(state),
-#          fips = as.character(fips),
-#          cases = as.integer(cases),
-#          deaths = as.integer(deaths))
-county_data <- read_csv("data/us-counties.csv")
-
-get_state <- getURL("https://raw.githubusercontent.com/nytimes/covid-19-data/master/us-states.csv")
-state_data <- read.csv(text = get_state)
-
-state_data <- state_data %>%
-  mutate(date = as.Date(date),
-         state = as.character(state),
-         fips = as.character(fips),
-         cases = as.integer(cases),
-         deaths = as.integer(deaths))
-# state_data <- read_csv("data/us-states.csv")
 countyNames <- read_csv("data/countyNames.csv")
-
-
-# tryStates = c("California", "New York", "New Jersey")
 
 allStates = countyNames[, c("state")]
 allStates = unique(allStates)
@@ -48,7 +23,6 @@ ui <- fluidPage(
   # Application title
   titlePanel("Predict Covid Data with Different Models"),
   
-  
   sidebarLayout(
     sidebarPanel(
       
@@ -56,14 +30,10 @@ ui <- fluidPage(
       
       selectInput("selectState", label = h3("Select a state"), 
                   choices = allStates
-                  
       ),
       
       
-      
       uiOutput("selectCounty"),
-      
-      
       
       
       dateRangeInput("dates", h3("Date range"), start = as.Date("2020-03-29"),
@@ -99,8 +69,13 @@ ui <- fluidPage(
       hidden(
         sliderInput("recovery", "Recovery rate (Gamma):",
                     min = 0, max = 1, value = 0.1)
-      )
+      ),
       
+      
+      actionButton("updateDataset", "Get the latest dataset"),
+      
+      helpText("Updating the latest datasets may take about 20 seconds.")
+
       
     ),
     
@@ -111,12 +86,12 @@ ui <- fluidPage(
       # for hidden function
       shinyjs::useShinyjs(),
       
-      #plotOutput(outputId = "statePlot"),
+      
+      textOutput("lateset_date"),
       
       textOutput("selected_var"),
       
       
-      # navbarPage(tabPanel("selectTab"),
       tabsetPanel(id = "tabs",
                   tabPanel("Cumulative Cases",
                            plotOutput("cumulative_plot"),
