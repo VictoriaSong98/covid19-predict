@@ -1,7 +1,6 @@
 library(shiny)
 library(shinyjs) # for hidden 
-library(ggplot2)
-library(dplyr)
+library(tidyverse)
 library(zoo)
 library(RCurl) # for viewing csv file from github
 
@@ -12,8 +11,6 @@ countyNames <- read_csv("data/countyNames.csv")
 
 allStates = countyNames[, c("state")]
 allStates = unique(allStates)
-
-
 
 
 

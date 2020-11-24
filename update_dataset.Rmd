@@ -11,7 +11,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 This is an instruction to update the dataset (locally)
 
-Download the zip file of the Git repository:
+1) Download the zip file of the Git repository:
 
 * Go to <https://github.com/nytimes/covid-19-data>
 
@@ -22,6 +22,35 @@ Download the zip file of the Git repository:
 * Unzip the file
 
 * Replace us-counties.csv and us-states.csv in the data folder in this R project with the same named files in the unzipped folder
+
+
+2) 
+
+```{r}
+# update the county data
+get_county <- getURL("https://raw.githubusercontent.com/nytimes/covid-19-data/master/us-counties.csv")
+county_data <- read.csv(text = get_county)
+county_data <- county_data %>%
+  mutate(date = as.Date(date),
+         county = as.character(county),
+         state = as.character(state),
+         fips = as.character(fips),
+         cases = as.integer(cases),
+         deaths = as.integer(deaths))
+write.csv(county_data, "data/us-counties.csv")
+
+# update the state data
+get_state <- getURL("https://raw.githubusercontent.com/nytimes/covid-19-data/master/us-states.csv")
+state_data <- read.csv(text = get_state)
+state_data <- state_data %>%
+  mutate(date = as.Date(date),
+         state = as.character(state),
+         fips = as.character(fips),
+         cases = as.integer(cases),
+         deaths = as.integer(deaths))
+write.csv(state_data, "data/us-states.csv")
+```
+
 
 
 

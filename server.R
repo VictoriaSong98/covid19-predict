@@ -11,8 +11,7 @@
 # shiny::runApp(display.mode="showcase")
 library(shiny)
 library(shinyjs) # for hidden 
-library(ggplot2)
-library(dplyr)
+library(tidyverse)
 library(zoo)
 library(ggthemes)
 library(forecast)
@@ -36,9 +35,8 @@ server <- function(input, output, session) {
   
   state_data <- reactiveValues(data = state_data_first)
   
-  
   observeEvent(input$updateDataset, {
-    # update the county data
+    # update the county data from the URL
     get_county <- getURL("https://raw.githubusercontent.com/nytimes/covid-19-data/master/us-counties.csv")
     county_data$data <- read.csv(text = get_county)
     county_data$data <- county_data$data %>%
@@ -49,7 +47,7 @@ server <- function(input, output, session) {
              cases = as.integer(cases),
              deaths = as.integer(deaths))
     
-    # update the state data
+    # update the state data from the URL
     get_state <- getURL("https://raw.githubusercontent.com/nytimes/covid-19-data/master/us-states.csv")
     state_data$data <- read.csv(text = get_state)
     state_data$data <- state_data$data %>%
@@ -60,10 +58,12 @@ server <- function(input, output, session) {
              deaths = as.integer(deaths))
   })
   
+  # A text input showing the latest date of the current dataset
   output$lateset_date <- renderText({ 
     paste("The latest date of the current dataset is: ", max(state_data$data$date))
   })
-    
+  
+  # A text input showing which state or county the user is choosing
   output$selected_var <- renderText({ 
     if (countyName() == "allState"){
       paste("You have selected", stateName(), "state")
@@ -72,6 +72,7 @@ server <- function(input, output, session) {
     }
   })
   
+  # get the state name from the input box called "selectState" and make it to be dynamic
   stateName <- reactive({
     req(input$selectState)
   })
@@ -84,7 +85,7 @@ server <- function(input, output, session) {
   })
   
   
-  # create a function that change value of K here
+  # create a function that change value of K here (for logistic model)
   dynamic_k <- reactive({
     if (countyName() == "allState"){
       temp = subset(state_data$data,state == stateName())
@@ -114,6 +115,7 @@ server <- function(input, output, session) {
     #)
   })
   
+  # create a function that change value of S here (for logistic model)
   dynamic_s <- reactive({
     if (countyName() == "allState"){
       temp = subset(state_data$data,state == stateName())
@@ -123,7 +125,6 @@ server <- function(input, output, session) {
     
     temp = subset(temp, date >= input$dates[1] & date <= input$dates[2])
     maxS = 1
-    #if("Logistic" %in% input$chooseModel1 & input$tabs == "Cumulative Cases"){
     if("Simple SIR" %in% input$chooseModel1 | "Simple SIR" %in% input$chooseModel2 | input$tabs == "SIR Model"){
       # case 1: when in cumulative tab
       maxS = max(temp$cases) * 10
@@ -137,6 +138,7 @@ server <- function(input, output, session) {
     #)
   })
   
+  # create a function that change value of I here (for SIR model)
   dynamic_i <- reactive({
     if (countyName() == "allState"){
       temp = subset(state_data$data,state == stateName())
@@ -158,7 +160,7 @@ server <- function(input, output, session) {
     #)
   })
   
-  
+  # Use toggle function to show the input boxes if a model is chosen
   observe({
     toggle(id = "alpha1", condition = "Double Exponential Smoothing" %in% input$chooseModel1)
     toggle(id = "beta1", condition = "Double Exponential Smoothing" %in% input$chooseModel1)
@@ -194,8 +196,9 @@ server <- function(input, output, session) {
     req(input$chooseCounty)
   })
   
+  # create a data frame that contains cumulative cases, daily cases and 7-day moving average data for 
+  # the state or the county that the user is choosing
   plotData <- reactive({
-    
     if (countyName() == "allState"){
       temp = subset(state_data$data,state == stateName())
     }else{
@@ -218,6 +221,7 @@ server <- function(input, output, session) {
   })
   
   
+  # a function that plot the line for actual data and any line for the model that the user is choosing
   bigPlot <- function(dataSet, yvar, chooseMod, dateRange, future_date){
     
     if(yvar == "cases"){
@@ -236,7 +240,7 @@ server <- function(input, output, session) {
       checkB = input$checkBeta2
     }
     
-    # plot the graph
+    # plot the graph for the actual data at the beginning
     my_plot <- ggplot(dataSet) +
       geom_line(mapping = aes(x = date, y = get(yvar)), size=1.5) +
       labs (y = "Positive cases", x = "Date")+
@@ -252,10 +256,11 @@ server <- function(input, output, session) {
     logi <- "Logistic" %in% chooseMod
     sir <- "Simple SIR" %in% chooseMod
     
+    # create a data frame called "new" to store the predicted data
     new <- data.frame(date = seq(dateRange[1], dateRange[2], by = "day"))
     
+    # simple linear model
     if(slr){
-      # simple linear model
       slr_ds <- lm(get(yvar) ~ as.Date(date), data = subset(dataSet, as.Date(date) < future_date))
       
       pred.slr <- predict(slr_ds, new)
@@ -267,11 +272,14 @@ server <- function(input, output, session) {
                               interval = "confidence",
                               level = 0.9)[, 3]
       
+      # store the data for simple linear model, also the lower bound and higher bound for the prediction 
+      # with 90% confidence interval
       new <- new %>%
         mutate(slr = pred.slr,
                slrLoCI = pred.slrLoCI,
                slrHiCI = pred.slrHiCI)
       
+      # plot the simple linear model line
       my_plot <-
         my_plot +
         geom_line(data = new, aes(x = date, y = slr), colour = "steelblue",
@@ -352,8 +360,11 @@ server <- function(input, output, session) {
     
     
     if(doule_smo){
+      # double exponential smoothing model
       pred.exp <- ts(dataSet[[yvar]])
       
+      # check if the users want to adjust the alpha value or beta value by themselves,
+      # or use the optimized values 
       mod = HoltWinters(pred.exp, alpha = a, beta = b, gamma = FALSE)
       if(checkA == TRUE & checkB == TRUE){
         mod = HoltWinters(pred.exp, gamma = FALSE)
@@ -371,16 +382,18 @@ server <- function(input, output, session) {
     }
     
     if (ave){
+      # 7-day moving average model
       my_plot <- my_plot +
-        
         geom_line(data = dataSet, mapping = aes(x = date, y = get(days_average)), size=1, colour="orangered")+
         labs (y = "7-day Rolling average", x = "Date")+
         xlim(dateRange[1], dateRange[2])
     }
     
     if (logi){
+      # logistic model
       logi_r = input$Rate_value
       k = input$K_value
+      
       
       grow_logistic <- function(time, parms) {
         with(as.list(parms), {
@@ -420,15 +433,15 @@ server <- function(input, output, session) {
     }
     
     if (sir){
+      # SIR model
       s = input$Svalue
       i = input$Ivalue
       sir_r = input$Rvalue
       infe = input$infection
       reco = input$recovery
       
-      
+      # create a sequence that contains dates from the start date to the end date
       sir_time_date = seq(dateRange[1], dateRange[2], by = "day")
-      
       
       # time sequence in numeric form
       time_number = 1:length(sir_time_date)
@@ -437,9 +450,12 @@ server <- function(input, output, session) {
       i_value <- dataSet %>%
         filter(date == dateRange[1])
       
+      # pass in initial values and the parameters
       para = c(beta = infe, gamma = reco)
       init = c(S = s, I = i, R = sir_r)
       
+      # create a function called "sir_eqn" that stores differential equations 
+      # that are needed in SIR model
       sir_eqn <- function(time, state, parameters){
         with(as.list(c(state, parameters)),{
           N = S + I + R
@@ -452,6 +468,7 @@ server <- function(input, output, session) {
       }
       
       # ode: solve for ordinary differential equation
+      # integrate the differential equations and get data for S, I and R
       out_sir <- as.data.frame(ode(y=init, times=time_number, func = sir_eqn, parms=para))
       
       out_sir <- bind_cols(out_sir, sir_time_date)
@@ -466,6 +483,7 @@ server <- function(input, output, session) {
       out_sir <- out_sir %>%
         mutate(newI_R = c(0, diff(I_R)))
       
+      # plot the different I+R line if the user is choosing cumulative cases or daily cases
       if (yvar == "cases"){
         my_plot <- my_plot +
           geom_line(data = out_sir, aes(x = time_dates, y = I_R), colour="brown1", size = 1)
@@ -474,21 +492,23 @@ server <- function(input, output, session) {
           geom_line(data = out_sir, aes(x = time_dates, y = newI_R), colour="brown1", size = 1)
       }
     }
+    
     # add vertical line
     my_plot <- my_plot +
       annotate("segment", colour = "purple",
                x = as.Date(future_date), xend = as.Date(future_date),
                y = 0, yend = Inf)
     
+    # add a theme for the plot
     my_plot <- my_plot +
       theme_igray()
     
     my_plot
   }
   
-  
+  # this function is for plotting the three lines from SIR model 
+  # in the SIR model tab
   sirPlot <- function(dataSet, dateRange){
-    
     s = input$Svalue
     i = input$Ivalue
     sir_r = input$Rvalue
@@ -496,7 +516,6 @@ server <- function(input, output, session) {
     reco = input$recovery
 
     time_date = seq(dateRange[1], dateRange[2], by = "day")
-    
     
     # time sequence in numeric form
     time_number = 1:length(time_date)
