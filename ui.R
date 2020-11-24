@@ -74,7 +74,7 @@ ui <- fluidPage(
       
       actionButton("updateDataset", "Get the latest dataset"),
       
-      helpText("Updating the latest datasets may take about 20 seconds.")
+      helpText("Updating the latest datasets may take a while.")
 
       
     ),
