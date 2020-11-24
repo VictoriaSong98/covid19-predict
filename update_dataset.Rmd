@@ -1,0 +1,27 @@
+---
+title: "Update datasets"
+author: "Yu Song (Victoria)"
+date: "2020/11/24"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+This is an instruction to update the dataset (locally)
+
+Download the zip file of the Git repository:
+
+* Go to <https://github.com/nytimes/covid-19-data>
+
+* Find the green button "Code"
+
+* Click on "Download ZIP"
+
+* Unzip the file
+
+* Replace us-counties.csv and us-states.csv in the data folder in this R project with the same named files in the unzipped folder
+
+
+
