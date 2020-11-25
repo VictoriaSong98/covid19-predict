@@ -71,7 +71,9 @@ ui <- fluidPage(
       
       actionButton("updateDataset", "Get the latest dataset"),
       
-      helpText("Updating the latest datasets may take a while.")
+      helpText("Updating the latest datasets may take a while."),
+      
+      helpText("Covid-19 data in the Unites States from New York Times. Available at https://github.com/nytimes/covid-19-data")
 
       
     ),
