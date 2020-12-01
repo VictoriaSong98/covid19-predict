@@ -37,7 +37,7 @@ county_data <- county_data %>%
          fips = as.character(fips),
          cases = as.integer(cases),
          deaths = as.integer(deaths))
-write.csv(county_data, "data/us-counties.csv")
+write.csv(county_data, "data/us-counties.csv", row.names = FALSE)
 
 # update the state data
 get_state <- getURL("https://raw.githubusercontent.com/nytimes/covid-19-data/master/us-states.csv")
@@ -48,7 +48,7 @@ state_data <- state_data %>%
          fips = as.character(fips),
          cases = as.integer(cases),
          deaths = as.integer(deaths))
-write.csv(state_data, "data/us-states.csv")
+write.csv(state_data, "data/us-states.csv", row.names = FALSE)
 ```
 
 

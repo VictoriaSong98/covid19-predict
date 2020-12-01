@@ -27,6 +27,9 @@ state_data_first <- read_csv("data/us-states.csv")
 countyNames <- read_csv("data/countyNames.csv")
 
 
+num_date <- function(date){
+  return(as.numeric(as.Date(date)))
+}
 
 # Define server logic required to draw a histogram
 server <- function(input, output, session) {
@@ -72,17 +75,23 @@ server <- function(input, output, session) {
     }
   })
   
+  
   # get the state name from the input box called "selectState" and make it to be dynamic
   stateName <- reactive({
     req(input$selectState)
   })
-  
   
   # variable name for the chosen county is "chooseCounty"
   output$selectCounty <- renderUI({
     selectInput("chooseCounty", h3("Select a county"), 
                 choices = c("Overall State" = "allState", subset(countyNames, state == stateName(), c("county"))))
   })
+  
+  # get the county name from the input box called "chooseCounty" and make it to be dynamic
+  countyName <- reactive({
+    req(input$chooseCounty)
+  })
+  
   
   
   # create a function that change value of K here (for logistic model)
@@ -166,6 +175,8 @@ server <- function(input, output, session) {
     toggle(id = "beta1", condition = "Double Exponential Smoothing" %in% input$chooseModel1)
     toggle(id = "checkAlpha1", condition = "Double Exponential Smoothing" %in% input$chooseModel1)
     toggle(id = "checkBeta1", condition = "Double Exponential Smoothing" %in% input$chooseModel1)
+    toggle(id = "alpha1_value", condition = "Double Exponential Smoothing" %in% input$chooseModel1)
+    toggle(id = "beta1_value", condition = "Double Exponential Smoothing" %in% input$chooseModel1)
     
     toggle(id = "cumulative_sir", condition = "Simple SIR" %in% input$chooseModel1)
   })
@@ -175,6 +186,8 @@ server <- function(input, output, session) {
     toggle(id = "beta2", condition = "Double Exponential Smoothing" %in% input$chooseModel2)
     toggle(id = "checkAlpha2", condition = "Double Exponential Smoothing" %in% input$chooseModel2)
     toggle(id = "checkBeta2", condition = "Double Exponential Smoothing" %in% input$chooseModel2)
+    toggle(id = "alpha2_value", condition = "Double Exponential Smoothing" %in% input$chooseModel2)
+    toggle(id = "beta2_value", condition = "Double Exponential Smoothing" %in% input$chooseModel2)
     
     toggle(id = "new_sir", condition = "Simple SIR" %in% input$chooseModel2)
   })
@@ -191,10 +204,6 @@ server <- function(input, output, session) {
   })
   
   
-  
-  countyName <- reactive({
-    req(input$chooseCounty)
-  })
   
   # create a data frame that contains cumulative cases, daily cases and 7-day moving average data for 
   # the state or the county that the user is choosing
@@ -261,7 +270,7 @@ server <- function(input, output, session) {
     
     # simple linear model
     if(slr){
-      slr_ds <- lm(get(yvar) ~ as.Date(date), data = subset(dataSet, as.Date(date) < future_date))
+      slr_ds <- lm(get(yvar) ~ num_date(date), data = subset(dataSet, as.Date(date) < future_date))
       
       pred.slr <- predict(slr_ds, new)
       
@@ -279,6 +288,7 @@ server <- function(input, output, session) {
                slrLoCI = pred.slrLoCI,
                slrHiCI = pred.slrHiCI)
       
+      View(new)
       # plot the simple linear model line
       my_plot <-
         my_plot +
@@ -294,8 +304,8 @@ server <- function(input, output, session) {
     }
     
     if(quad){
-      # qudratic model
-      quad_ds <- lm(get(yvar) ~ as.Date(date) + I(time(date) ^ 2),
+      # quadratic model
+      quad_ds <- lm(get(yvar) ~ num_date(date) + I(num_date(date) ^ 2),
                     data = subset(dataSet, as.Date(date) < future_date))
       
       pred.quad <- predict(quad_ds, new)
@@ -310,6 +320,7 @@ server <- function(input, output, session) {
         mutate(quad = pred.quad,
                quadLoCI = pred.quadLoCI,
                quadHiCI = pred.quadHiCI)
+      
       
       my_plot <-
         my_plot +
@@ -327,7 +338,7 @@ server <- function(input, output, session) {
     
     if(cub){
       # cubic model
-      cubic_ds <- lm(get(yvar) ~ as.Date(date) + I(time(date) ^ 2) + I(time(date) ^ 3),
+      cubic_ds <- lm(get(yvar) ~ num_date(date) + I(num_date(date) ^ 2) + I(num_date(date) ^ 3),
                      data = subset(dataSet, as.Date(date) < future_date))
       
       pred.cubic <- predict(cubic_ds, new)
@@ -343,7 +354,7 @@ server <- function(input, output, session) {
                cubicLoCI = pred.cubicLoCI,
                cubicHiCI = pred.cubicHiCI)
       
-      
+      View(new)
       
       my_plot <-
         my_plot +

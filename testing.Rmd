@@ -10,13 +10,34 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r}
 library(readr)
 state_data <- read_csv("data/us-states.csv")
+county_data <- read_csv("data/us-counties.csv")
 ```
 
 ```{r}
-nys = subset(state_data, state == "New York")
-
+nys <- subset(state_data, state == "New York")
+View(nys)
 nys_small = subset(nys, date >= "2020-4-1" & date < "2020-5-1")
 
 nys_small$cases[1]
+```
+
+
+```{r}
+countyNames = county_data[, c("county", "state")]
+countyNames = unique(countyNames)
+#write.csv(countyData2,"data/countyNames.csv", row.names = FALSE)
+```
+
+
+```{r}
+countyNames <- read_csv("data/countyNames.csv")
+
+allStates = countyNames[, c("state")]
+allStates = unique(allStates)
+
+write.csv(allStates,"data/allStates.csv", row.names = FALSE)
+
+allStates <- read_csv("data/allStates.csv")
+#allStates = str_sort(allStates, decreasing = FALSE)
 ```
 

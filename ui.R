@@ -7,11 +7,8 @@ library(RCurl) # for viewing csv file from github
 # Load data ----
 library(readr)
 
-countyNames <- read_csv("data/countyNames.csv")
-
-allStates = countyNames[, c("state")]
-allStates = unique(allStates)
-
+#countyNames <- read_csv("data/countyNames.csv")
+allStates <- read_csv("data/allStates.csv")
 
 
 # Define UI for application that draws a histogram
@@ -60,12 +57,12 @@ ui <- fluidPage(
       
       hidden(
         sliderInput("infection", "Infection rate (Beta):",
-                    min = 0, max = 1, value = 0.1)
+                    min = 0, max = 0.5, value = 0.1)
       ),
       
       hidden(
         sliderInput("recovery", "Recovery rate (Gamma):",
-                    min = 0, max = 1, value = 0.1)
+                    min = 0, max = 0.5, value = 0.1)
       ),
       
       
@@ -115,7 +112,6 @@ ui <- fluidPage(
                                hidden(
                                  checkboxInput("checkAlpha1", "Use the optimum Alpha value", FALSE)
                                )
-                               
                              ),
                              column(
                                width = 4,
@@ -159,6 +155,7 @@ ui <- fluidPage(
                                hidden(
                                  checkboxInput("checkAlpha2", "Use the optimum Alpha value", FALSE)
                                )
+                               
                              ),
                              column(
                                width = 4,
