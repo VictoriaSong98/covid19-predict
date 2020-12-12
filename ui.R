@@ -11,16 +11,19 @@ library(readr)
 allStates <- read_csv("data/allStates.csv")
 
 
-# Define UI for application that draws a histogram
 ui <- fluidPage(
+  
+  # for hidden function
+  shinyjs::useShinyjs(),
   
   # Application title
   titlePanel("Predict Covid Data with Different Models"),
   
+  # Sidebar layout with input and output definitions ----
   sidebarLayout(
+    
+    # Sidebar panel for inputs ----
     sidebarPanel(
-      
-      
       
       selectInput("selectState", label = h3("Select a state"), 
                   choices = allStates
@@ -75,13 +78,8 @@ ui <- fluidPage(
       
     ),
     
-    
-    # Show a plot of the generated distribution
+    # Main panel for displaying outputs ----
     mainPanel(
-      
-      # for hidden function
-      shinyjs::useShinyjs(),
-      
       
       textOutput("lateset_date"),
       
@@ -123,10 +121,6 @@ ui <- fluidPage(
                                  checkboxInput("checkBeta1", "Use the optimum Beta value", FALSE)
                                )
                              )
-                           ),
-                           
-                           hidden(
-                             plotOutput("cumulative_sir")
                            )
                   ),
                   
@@ -167,11 +161,9 @@ ui <- fluidPage(
                                  checkboxInput("checkBeta2", "Use the optimum Beta value", FALSE)
                                )
                              )
-                           ),
-                           hidden(
-                             plotOutput("new_sir")
                            )
                   ),
+                  
                   tabPanel("SIR Model",
                            plotOutput("sir_model_plot")
                   )

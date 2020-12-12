@@ -28,10 +28,9 @@ countyNames <- read_csv("data/countyNames.csv")
 
 
 num_date <- function(date){
-  return(as.numeric(as.Date(date)))
+  return(as.numeric(as.Date(date)) - 18000)
 }
 
-# Define server logic required to draw a histogram
 server <- function(input, output, session) {
   
   county_data <- reactiveValues(data = county_data_first)
@@ -81,18 +80,17 @@ server <- function(input, output, session) {
     req(input$selectState)
   })
   
-  # variable name for the chosen county is "chooseCounty"
-  output$selectCounty <- renderUI({
-    selectInput("chooseCounty", h3("Select a county"), 
-                choices = c("Overall State" = "allState", subset(countyNames, state == stateName(), c("county"))))
-  })
   
   # get the county name from the input box called "chooseCounty" and make it to be dynamic
   countyName <- reactive({
     req(input$chooseCounty)
   })
   
-  
+  # variable name for the chosen county is "chooseCounty"
+  output$selectCounty <- renderUI({
+    selectInput("chooseCounty", h3("Select a county"), 
+                choices = c("Overall State" = "allState", subset(countyNames, state == stateName(), c("county"))))
+  })
   
   # create a function that change value of K here (for logistic model)
   dynamic_k <- reactive({
@@ -102,6 +100,7 @@ server <- function(input, output, session) {
       temp = subset(county_data$data,state == stateName() & county == countyName())
     }
     
+    temp = subset(temp, date >= input$dates[1] & date <= input$dates[2])
     # adding "newcases" variable in case the user wants to render new cases plot
     temp <- temp %>%
       mutate(newcases = c(NA, diff(cases)))
@@ -118,10 +117,8 @@ server <- function(input, output, session) {
   
   
   output$inputKvalue <- renderUI({
-    #hidden(
-      numericInput("K_value", "Maximum case volume (K):",
-                   value = dynamic_k())
-    #)
+    numericInput("K_value", "Maximum case volume (K):",
+                 value = dynamic_k())
   })
   
   # create a function that change value of S here (for logistic model)
@@ -142,9 +139,7 @@ server <- function(input, output, session) {
   })
   
   output$inputSvalue <- renderUI({
-    #hidden(
-      numericInput("Svalue", h5("Input the S (Susceptible) value:"), value = dynamic_s())
-    #)
+    numericInput("Svalue", h5("Input the S (Susceptible) value:"), value = dynamic_s())
   })
   
   # create a function that change value of I here (for SIR model)
@@ -164,9 +159,7 @@ server <- function(input, output, session) {
   })
   
   output$inputIvalue <- renderUI({
-    #hidden(
-      numericInput("Ivalue", h5("Input the I (Infected) value:"), value = dynamic_i())
-    #)
+    numericInput("Ivalue", h5("Input the I (Infected) value:"), value = dynamic_i())
   })
   
   # Use toggle function to show the input boxes if a model is chosen
@@ -220,11 +213,11 @@ server <- function(input, output, session) {
     
     # adding "7 day rolling average" variable for cumulative cases
     temp <- temp %>%
-      mutate(case_7days = rollmean(cases, k = 7, fill = NA))
+      mutate(case_7days = rollmean(cases, k = 7, fill = NA, align = "right"))
     
     # adding "7 day rolling average" variable for new cases
     temp <- temp %>%
-      mutate(case_7days_new = rollmean(newcases, k = 7, fill = NA))
+      mutate(case_7days_new = rollmean(newcases, k = 7, fill = NA, align = "right"))
     
     return(temp)
   })
@@ -287,8 +280,7 @@ server <- function(input, output, session) {
         mutate(slr = pred.slr,
                slrLoCI = pred.slrLoCI,
                slrHiCI = pred.slrHiCI)
-      
-      View(new)
+    
       # plot the simple linear model line
       my_plot <-
         my_plot +
@@ -353,16 +345,13 @@ server <- function(input, output, session) {
         mutate(cubic = pred.cubic,
                cubicLoCI = pred.cubicLoCI,
                cubicHiCI = pred.cubicHiCI)
-      
-      View(new)
-      
       my_plot <-
         my_plot +
         geom_line(data = new, aes(x = date, y = cubic), colour = "royalblue",
                   size=1.5, linetype = "dashed")+
         geom_ribbon(data = new, aes(x = date, ymin = cubicLoCI, ymax = cubicHiCI),
                     fill = "salmon", alpha = 0.4, stat = "identity")
-      
+
       if (max(new$cubic) > max(dataSet[[yvar]], na.rm = TRUE)){
         my_plot <- my_plot +
           ylim(0, max(dataSet[[yvar]], na.rm = TRUE) * 2)
@@ -373,6 +362,7 @@ server <- function(input, output, session) {
     if(doule_smo){
       # double exponential smoothing model
       pred.exp <- ts(dataSet[[yvar]])
+      pred.exp[1] = 0
       
       # check if the users want to adjust the alpha value or beta value by themselves,
       # or use the optimized values 
@@ -389,7 +379,7 @@ server <- function(input, output, session) {
       
       my_plot <-
         my_plot +
-        geom_line(data = dataSet, mapping = aes(x = date, y = pred.de), size=1, colour="plum2")
+        geom_line(data = dataSet, mapping = aes(x = date, y = pred.de), size=1, colour="dodgerblue1")
     }
     
     if (ave){
@@ -413,8 +403,6 @@ server <- function(input, output, session) {
         })
       }
       
-      
-      
       time_date = seq(dateRange[1], dateRange[2], by = "day")
       time = 1:length(time_date)
       
@@ -427,7 +415,7 @@ server <- function(input, output, session) {
       }
       
       out <- grow_logistic(time, parms = list(P_0 = p_0, R = logi_r, K = k))
-      out <- bind_cols(out, time_date)
+      out$time_date=time_date
       names(out) = c("time_num", "cases", "time_date")
       
       out <- out %>%
@@ -482,7 +470,7 @@ server <- function(input, output, session) {
       # integrate the differential equations and get data for S, I and R
       out_sir <- as.data.frame(ode(y=init, times=time_number, func = sir_eqn, parms=para))
       
-      out_sir <- bind_cols(out_sir, sir_time_date)
+      out_sir$sir_time_date=sir_time_date
       
       names(out_sir) = c("time_num", "S", "I", "R", "time_dates")
       
@@ -548,7 +536,7 @@ server <- function(input, output, session) {
     # ode: solve for ordinary differential equation
     out<-as.data.frame(ode(y=init, times=time_number, func = sir_eqn, parms=para))
     
-    out <- bind_cols(out, time_date)
+    out$time_date=time_date
     
     names(out) = c("time_num", "S", "I", "R", "time_dates")
     
